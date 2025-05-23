@@ -1,0 +1,24 @@
+
+POWER PURCHASE AGREEMENT (PPA)
+
+This Power Purchase Agreement (“Agreement”) is made on the 1st day of April, 2024 between ABC Power Ltd. (“Seller”) and XYZ Utilities (“Buyer”).
+
+1. Contract Duration:
+This agreement shall remain in effect for a period of 10 years, commencing from April 15, 2024 and ending on April 14, 2034.
+
+2. Energy Supply:
+The Seller agrees to supply 50 MW of solar power continuously, with monthly energy accounting based on SLDC scheduling.
+
+3. Tariff and Payment:
+The Buyer shall pay a fixed tariff of INR 3.50 per kWh, inclusive of transmission and scheduling charges. Invoices shall be paid within 30 days of submission.
+
+4. Scheduling:
+The Seller shall submit day-ahead schedules by 10:00 AM each day and adhere to the final dispatch schedule issued by SLDC.
+
+5. Curtailment and Penalty:
+In case of deviation greater than 15% from scheduled supply, the Seller shall bear the DSM penalty as per CERC norms.
+
+6. Termination:
+Either party may terminate this agreement by giving 6 months’ written notice in the event of regulatory breach or payment default exceeding 90 days.
+
+IN WITNESS WHEREOF, the parties have executed this Agreement on the date first above written.

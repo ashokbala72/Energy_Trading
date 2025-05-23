@@ -1,0 +1,54 @@
+GenAI Energy Trading Assistant – What It Does (UK Version)
+
+This assistant helps UK energy trading teams make smarter, faster decisions using AI to analyse power market data, forecasts, regulations, and contracts.
+
+Here’s what it does step-by-step:
+
+1. Market Summary
+You upload data from UK electricity markets (like EPEX SPOT or market prices from NGESO).
+The app summarises:
+- Are prices trending up or down?
+- Are there any grid constraints?
+- Which zones or time blocks are showing volatility?
+
+2. Forecast vs Actual Generation
+You upload forecasted and actual generation data.
+The app highlights:
+- Where your forecasts were off
+- How much you over- or under-generated
+- Possible reasons (e.g., weather variation, outages)
+
+3. Regulatory Updates
+Upload bulletins from Ofgem, NGESO, or BEIS.
+The app explains:
+- What the regulation means
+- Who it impacts (generator, supplier, aggregator)
+- What you should do about it
+
+4. Trade Log Review
+Upload logs of past trades or imbalance settlement data.
+The app identifies:
+- Missed profit opportunities
+- Best price bands and settlement windows
+- Trends across trading days
+
+5. Trading Suggestions
+Based on demand forecasts and real-time market trends, the app suggests:
+- When and how much to buy/sell
+- Optimal bid prices and settlement zones
+- Which generation asset to dispatch
+
+6. Contract Analysis
+Upload your Power Purchase Agreements (PPAs) or supplier contracts.
+The app pulls out:
+- Key dates
+- Penalty clauses
+- Volume obligations and flexibility rules
+
+Who uses this assistant?
+- UK energy traders (retail or wholesale)
+- Balancing and forecasting teams
+- Aggregators and virtual power plant operators
+- Compliance teams working with Ofgem or REMA rules
+
+In short, this tool turns complex UK electricity market data into simple, actionable trading strategies.
