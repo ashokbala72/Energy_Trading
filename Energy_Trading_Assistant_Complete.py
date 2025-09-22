@@ -1,44 +1,67 @@
 import pandas as pd
 import os
-from dotenv import load_dotenv
-import streamlit as st
-from openai import AzureOpenAI
 import datetime
 import random
 import requests
+import streamlit as st
+from dotenv import load_dotenv
+from openai import AzureOpenAI
 
 # -----------------------------
 # Load environment variables
 # -----------------------------
 load_dotenv()
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_KEY = os.getenv("AZURE_OPENAI_API_KEY")
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_API_VERSION = "2024-12-01-preview"
-AZURE_OPENAI_DEPLOYMENT_NAME = "gpt-4o-raj"
+AZURE_OPENAI_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o-raj")
 
 client = AzureOpenAI(
-    api_key=AZURE_OPENAI_API_KEY,
+    api_key=AZURE_OPENAI_KEY,
     api_version=AZURE_OPENAI_API_VERSION,
     azure_endpoint=AZURE_OPENAI_ENDPOINT,
 )
 
 # -----------------------------
-# Helper Function
+# Helper: Safe CSV Reader
 # -----------------------------
-def get_genai_response(prompt, max_tokens=500, temperature=0.4):
+def safe_read_csv(uploaded_file):
+    """Safely read uploaded CSV, return DataFrame or None if empty/invalid."""
+    if uploaded_file is None:
+        return None
+    try:
+        uploaded_file.seek(0)
+        if hasattr(uploaded_file, "size") and uploaded_file.size == 0:
+            st.warning("⚠️ Uploaded file is empty.")
+            return None
+        df = pd.read_csv(uploaded_file)
+        if df.empty:
+            st.warning("⚠️ Uploaded CSV has no rows.")
+            return None
+        return df
+    except pd.errors.EmptyDataError:
+        st.error("❌ Uploaded file has no data (Empty CSV).")
+    except Exception as e:
+        st.error(f"❌ Could not read CSV: {e}")
+    return None
+
+# -----------------------------
+# Helper: GenAI Response
+# -----------------------------
+def get_genai_response(prompt, max_tokens=400, temperature=0.4):
     try:
         resp = client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT_NAME,
+            model=AZURE_OPENAI_DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=max_tokens,
             temperature=temperature,
         )
         return resp.choices[0].message.content
     except Exception as e:
-        return f"⚠️ GenAI error: {e}"
+        return f"❌ GenAI call failed: {str(e)}"
 
 # -----------------------------
-# Streamlit UI
+# Streamlit UI Setup
 # -----------------------------
 st.set_page_config(layout="wide")
 st.title("⚡ AI-Powered Energy Trading Assistant")
@@ -62,9 +85,26 @@ main_tabs = st.tabs([
 with main_tabs[0]:
     st.subheader("📌 Application Overview: Energy Trader")
     st.markdown("""
-This **Energy Trader Assistant** supports smarter, data-driven trading using GenAI.  
-Functional areas include Market Summary, Forecast Deviation, Regulatory Advisory, Trade Logs, Contract Clause Analysis, Price Forecast, Emerging Risks, and Trading Strategy.
-""")
+### 🌟 Purpose
+The **Energy Trader Assistant** is a GenAI-powered platform designed to assist energy utilities and trading professionals.
+
+### 📅 Inputs
+- Forecasted vs Actual Generation (CSV)
+- Trade Logs (CSV)
+- Regulatory Bulletins (CSV)
+- Power Contracts / PPAs (Text file)
+- Market Summary Data (API or simulated)
+
+### 🧠 Functional Areas
+1. Market Summary
+2. Forecast Deviation
+3. Regulatory Advisory
+4. Trade Log Insights
+5. Contract Clause Analysis
+6. Trading Strategy
+7. Price Forecast AI
+8. Emerging Risks
+    """)
 
 # -----------------------------
 # Tab 1: Market Summary
@@ -73,62 +113,59 @@ with main_tabs[1]:
     st.subheader("📈 Market Summary")
     try:
         url = "https://data.nationalgrideso.com/api/3/action/datastore_search?resource_id=4f6ec4a3-dc81-4c25-b01c-cd15ea52b421&limit=10"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         records = response.json()["result"]["records"]
         market_df = pd.DataFrame(records)
         st.dataframe(market_df.head())
-
-        prompt = f"Analyze the electricity market summary for price trends and volume shifts:\n\n{market_df.head(10).to_string(index=False)}"
-        st.info(get_genai_response(prompt, max_tokens=350))
+        st.info(get_genai_response(f"Analyze market summary:\n{market_df.head(10).to_string(index=False)}"))
     except Exception:
-        st.warning("⚠️ Could not fetch live market data. Displaying simulated fallback.")
+        st.warning("⚠️ Live market API failed, using fallback.")
         fallback_df = pd.DataFrame({
-            "Region": ["North", "South", "East", "West"],
-            "Price (£/kWh)": [0.12, 0.15, 0.14, 0.13],
-            "Volume (MWh)": [500, 700, 600, 450],
+            'Region': ['North', 'South', 'East', 'West'],
+            'Price (£/kWh)': [0.12, 0.15, 0.14, 0.13],
+            'Volume (MWh)': [500, 700, 600, 450]
         })
         st.dataframe(fallback_df)
-        prompt = f"Analyze this simulated electricity market summary:\n\n{fallback_df.to_string(index=False)}"
-        st.info(get_genai_response(prompt, max_tokens=350))
+        st.info(get_genai_response(f"Analyze fallback market:\n{fallback_df.to_string(index=False)}"))
 
 # -----------------------------
 # Tab 2: Forecast Deviation
 # -----------------------------
 with main_tabs[2]:
     st.subheader("📊 Forecast Deviation")
-    if forecast_file and actual_file:
-        df_forecast = pd.read_csv(forecast_file)
-        df_actual = pd.read_csv(actual_file)
-        df_combined = df_forecast.iloc[:, [0, 1, 2]].copy()
-        df_combined["Actual (MW)"] = df_actual.iloc[:, 2] if df_actual.shape[1] > 2 else df_actual.iloc[:, 1]
+    df_forecast = safe_read_csv(forecast_file)
+    df_actual = safe_read_csv(actual_file)
+    if df_forecast is not None and df_actual is not None:
+        df_combined = df_forecast.iloc[:, :2].copy()
+        df_combined['Actual (MW)'] = df_actual.iloc[:, -1]
         st.dataframe(df_combined.head())
-
-        prompt = f"Compare forecasted demand vs actual generation and suggest operator actions:\n\n{df_combined.head(10).to_string(index=False)}"
-        st.info(get_genai_response(prompt, max_tokens=400))
+        st.info(get_genai_response(f"Compare forecast vs actual:\n{df_combined.head(10).to_string(index=False)}"))
     else:
-        st.warning("Upload both Forecast and Actual Generation CSVs.")
+        st.warning("Upload both Forecast and Actual CSVs.")
 
 # -----------------------------
 # Tab 3: Regulatory Advisory
 # -----------------------------
 with main_tabs[3]:
     st.subheader("📜 Regulatory Advisory")
-    if regulation_file:
-        regulation_df = pd.read_csv(regulation_file)
-        st.dataframe(regulation_df.head())
-        prompt = f"Review regulatory data and highlight trading constraints:\n\n{regulation_df.head(10).to_string(index=False)}"
-        st.success(get_genai_response(prompt, max_tokens=400))
+    df_reg = safe_read_csv(regulation_file)
+    if df_reg is not None:
+        st.dataframe(df_reg.head())
+        st.success(get_genai_response(f"Review regulatory data:\n{df_reg.head(10).to_string(index=False)}"))
+    else:
+        st.warning("Upload a Regulatory CSV.")
 
 # -----------------------------
-# Tab 4: Trade Log Insights
+# Tab 4: Trade Log
 # -----------------------------
 with main_tabs[4]:
     st.subheader("📒 Trade Log Insights")
-    if trade_file:
-        trade_df = pd.read_csv(trade_file)
-        st.dataframe(trade_df.head())
-        prompt = f"From this trade log, identify missed opportunities and suggest buy/sell with price, quantity, and region:\n\n{trade_df.head(10).to_string(index=False)}"
-        st.success(get_genai_response(prompt, max_tokens=400))
+    df_trade = safe_read_csv(trade_file)
+    if df_trade is not None:
+        st.dataframe(df_trade.head())
+        st.success(get_genai_response(f"Trade log insights:\n{df_trade.head(10).to_string(index=False)}"))
+    else:
+        st.warning("Upload Trade Log CSV.")
 
 # -----------------------------
 # Tab 5: Contract Clause Analysis
@@ -136,47 +173,26 @@ with main_tabs[4]:
 with main_tabs[5]:
     st.subheader("📑 Contract Clause Analysis")
     if contract_file:
+        contract_file.seek(0)
         contract_text = contract_file.read().decode("utf-8")
-        prompt = f"From this energy contract, extract payment terms, penalties, restrictions, and provide recommendations:\n\n{contract_text[:1000]}"
-        st.success(get_genai_response(prompt, max_tokens=500))
+        st.success(get_genai_response(f"Contract analysis:\n{contract_text[:1000]}"))
+    else:
+        st.warning("Upload Contract TXT.")
 
 # -----------------------------
 # Tab 6: Price Forecast AI
 # -----------------------------
 with main_tabs[6]:
     st.subheader("📈 Price Forecast AI")
-    if forecast_file:
-        df = pd.read_csv(forecast_file)
+    df_forecast = safe_read_csv(forecast_file)
+    if df_forecast is not None:
         today = datetime.date.today()
         price_data = [(today + datetime.timedelta(days=i), round(random.uniform(0.11, 0.18), 3)) for i in range(30)]
         price_df = pd.DataFrame(price_data, columns=["Date", "Predicted Price (£/kWh)"])
         st.dataframe(price_df)
-
-        prompt = f"Based on this 30-day forecast, recommend trading decisions:\n\n{price_df.to_string(index=False)}"
-        st.info(get_genai_response(prompt, max_tokens=500))
-
-        if all([forecast_file, actual_file, trade_file, contract_file]):
-            forecast_df = pd.read_csv(forecast_file).head(10)
-            actual_df = pd.read_csv(actual_file).head(10)
-            trade_df = pd.read_csv(trade_file).head(10)
-            contract_excerpt = contract_file.read().decode("utf-8")[:1000]
-
-            prompt = f"""You are an energy trading strategist. Based on the following data, give specific buy/sell recommendations:
-
-FORECAST:
-{forecast_df.to_string(index=False)}
-
-ACTUAL:
-{actual_df.to_string(index=False)}
-
-TRADES:
-{trade_df.to_string(index=False)}
-
-CONTRACT:
-{contract_excerpt}"""
-            st.success(get_genai_response(prompt, max_tokens=1000))
+        st.info(get_genai_response(f"Price forecast strategy:\n{price_df.to_string(index=False)}"))
     else:
-        st.warning("Upload Forecast Demand CSV.")
+        st.warning("Upload Forecast CSV for price forecast.")
 
 # -----------------------------
 # Tab 7: Emerging Risks
@@ -185,50 +201,38 @@ with main_tabs[7]:
     st.subheader("🚨 Emerging Risks")
     try:
         url = "https://data.nationalgrideso.com/api/3/action/datastore_search?resource_id=4f6ec4a3-dc81-4c25-b01c-cd15ea52b421&limit=10"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         df = pd.DataFrame(response.json()["result"]["records"])
         st.dataframe(df)
-        prompt = f"Analyze real-time electricity market data for emerging risks:\n\n{df.head(10).to_string(index=False)}"
-        st.success(get_genai_response(prompt, max_tokens=500))
+        st.success(get_genai_response(f"Emerging risks:\n{df.head(10).to_string(index=False)}"))
     except Exception:
-        st.warning("⚠️ Live API failed. Showing simulated risks.")
+        st.warning("⚠️ Risk API failed, using fallback.")
         fallback_df = pd.DataFrame({
-            "Region": ["North", "South", "East", "West"],
-            "Warning Level": ["High", "Medium", "Low", "Medium"],
-            "Signal": ["Capacity risk", "Price spike", "Stable", "Congestion"],
+            'Region': ['North', 'South', 'East', 'West'],
+            'Warning Level': ['High', 'Medium', 'Low', 'Medium'],
+            'Signal': ['Capacity risk', 'Price spike', 'Stable', 'Congestion']
         })
         st.dataframe(fallback_df)
-        prompt = f"Analyze fallback risk signals and recommend strategies:\n\n{fallback_df.to_string(index=False)}"
-        st.success(get_genai_response(prompt, max_tokens=500))
+        st.success(get_genai_response(f"Fallback risks:\n{fallback_df.to_string(index=False)}"))
 
 # -----------------------------
 # Tab 8: Trading Strategy
 # -----------------------------
 with main_tabs[8]:
     st.subheader("📘 Trading Strategy")
-    if all([forecast_file, actual_file, trade_file, contract_file]):
-        forecast_df = pd.read_csv(forecast_file).head(10)
-        actual_df = pd.read_csv(actual_file).head(10)
-        trade_df = pd.read_csv(trade_file).head(10)
-        contract_excerpt = contract_file.read().decode("utf-8")[:1000]
+    df_forecast = safe_read_csv(forecast_file)
+    df_actual = safe_read_csv(actual_file)
+    df_trade = safe_read_csv(trade_file)
+    if df_forecast is not None and df_actual is not None and df_trade is not None and contract_file:
+        contract_file.seek(0)
+        contract_text = contract_file.read().decode("utf-8")[:1000]
+        combined = f"""FORECAST:\n{df_forecast.head(10).to_string(index=False)}
 
-        prompt = f"""Based on the following data, recommend a specific trading strategy:
-- What to buy/sell?
-- At what price/load?
-- Timing for action
-- Contractual or regulatory risks
+ACTUAL:\n{df_actual.head(10).to_string(index=False)}
 
-FORECAST:
-{forecast_df.to_string(index=False)}
+TRADE LOG:\n{df_trade.head(10).to_string(index=False)}
 
-ACTUAL:
-{actual_df.to_string(index=False)}
-
-TRADE LOG:
-{trade_df.to_string(index=False)}
-
-CONTRACT:
-{contract_excerpt}"""
-        st.success(get_genai_response(prompt, max_tokens=1000))
+CONTRACT:\n{contract_text}"""
+        st.success(get_genai_response(f"Trading strategy based on:\n{combined}", max_tokens=1000))
     else:
-        st.warning("Upload Forecast, Actual, Trade Log, and Contract files.")
+        st.warning("Upload Forecast, Actual, Trade Log and Contract files.")
